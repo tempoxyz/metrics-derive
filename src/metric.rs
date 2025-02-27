@@ -30,14 +30,14 @@ impl<'a> Metric<'a> {
                     COUNTER_TY => quote! { metrics::counter! },
                     HISTOGRAM_TY => quote! { metrics::histogram! },
                     GAUGE_TY => quote! { metrics::gauge! },
-                    _ => return Err(Error::new_spanned(path_ty, "Unsupported metric type")),
+                    _ => return Err(Error::new_spanned(path_ty, "unsupported metric type")),
                 };
 
                 return Ok(quote! { #registrar });
             }
         }
 
-        Err(Error::new_spanned(&self.field.ty, "Unsupported metric type"))
+        Err(Error::new_spanned(&self.field.ty, "unsupported metric type"))
     }
 
     pub(crate) fn describe_stmt(&self) -> Result<proc_macro2::TokenStream> {
@@ -47,13 +47,13 @@ impl<'a> Metric<'a> {
                     COUNTER_TY => quote! { metrics::describe_counter! },
                     HISTOGRAM_TY => quote! { metrics::describe_histogram! },
                     GAUGE_TY => quote! { metrics::describe_gauge! },
-                    _ => return Err(Error::new_spanned(path_ty, "Unsupported metric type")),
+                    _ => return Err(Error::new_spanned(path_ty, "unsupported metric type")),
                 };
 
                 return Ok(quote! { #descriptor });
             }
         }
 
-        Err(Error::new_spanned(&self.field.ty, "Unsupported metric type"))
+        Err(Error::new_spanned(&self.field.ty, "unsupported metric type"))
     }
 }

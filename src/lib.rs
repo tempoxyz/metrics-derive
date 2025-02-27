@@ -1,4 +1,8 @@
-//! This crate provides [Metrics] derive macro
+//! This crate provides the [`Metrics`] derive macro for recording [`metrics`].
+//!
+//! See the [`Metrics`] derive macro for more information.
+//!
+//! [`metrics`]: https://docs.rs/metrics
 
 #![doc(issue_tracker_base_url = "https://github.com/rkrasiuk/metrics-derive/issues/")]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
@@ -11,9 +15,8 @@ mod expand;
 mod metric;
 mod with_attrs;
 
-/// The [Metrics] derive macro instruments all of the struct fields and
-/// creates a [Default] implementation for the struct registering all of
-/// the metrics.
+/// Instruments all of the struct fields and creates a [`Default`] implementation for the struct
+/// recording all of the metrics.
 ///
 /// Additionally, it creates a `describe` method on the struct, which
 /// internally calls the describe statements for all metric fields.
