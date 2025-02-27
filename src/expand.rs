@@ -232,28 +232,12 @@ fn parse_metrics_attr(node: &DeriveInput) -> Result<MetricsAttr> {
             if scope.is_some() {
                 return Err(Error::new_spanned(kv, "duplicate `scope` value provided"));
             }
-            let scope_lit = parse_str_lit(lit)?;
-            validate_metric_name(&scope_lit)?;
-            scope = Some(scope_lit);
+            scope = Some(parse_str_lit(lit)?);
         } else if kv.path.is_ident("separator") {
             if separator.is_some() {
                 return Err(Error::new_spanned(kv, "duplicate `separator` value provided"));
             }
-            let separator_lit = parse_str_lit(lit)?;
-            if !valid_separator(&separator_lit.value()) {
-                return Err(Error::new_spanned(
-                    kv,
-                    format!(
-                        "unsupported `separator` value; supported: {}",
-                        SUPPORTED_SEPARATORS
-                            .iter()
-                            .map(|sep| format!("`{sep}`"))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                ));
-            }
-            separator = Some(separator_lit);
+            separator = Some(parse_str_lit(lit)?);
         } else if kv.path.is_ident("dynamic") {
             if dynamic.is_some() {
                 return Err(Error::new_spanned(kv, "duplicate `dynamic` flag provided"));
@@ -315,9 +299,7 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
                                     "duplicate `rename` value provided",
                                 ));
                             }
-                            let rename_lit = parse_str_lit(lit)?;
-                            validate_metric_name(&rename_lit)?;
-                            rename = Some(rename_lit)
+                            rename = Some(parse_str_lit(lit)?)
                         } else {
                             return Err(Error::new_spanned(kv, "unsupported attribute entry"));
                         }
@@ -350,40 +332,6 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
     }
 
     Ok(metrics)
-}
-
-fn validate_metric_name(name: &LitStr) -> Result<()> {
-    if valid_metric_name(&name.value()) {
-        Ok(())
-    } else {
-        Err(Error::new_spanned(
-            name,
-            format!("metric names must match the regex `{METRIC_NAME_RE}`"),
-        ))
-    }
-}
-
-/// Metric name regex according to Prometheus data model.
-///
-/// See <https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels>.
-const METRIC_NAME_RE: &str = "^[a-zA-Z_:.][a-zA-Z0-9_:.]*$";
-
-/// Supported metric name separators.
-const SUPPORTED_SEPARATORS: &[&str] = &[".", "_", ":"];
-
-fn valid_metric_name(s: &str) -> bool {
-    let mut bytes = s.bytes();
-    let Some(first) = bytes.next() else { return false };
-    (first.is_ascii_alphabetic() || valid_separator_byte(first)) &&
-        bytes.all(|b| b.is_ascii_alphanumeric() || valid_separator_byte(b))
-}
-
-fn valid_separator(s: &str) -> bool {
-    SUPPORTED_SEPARATORS.contains(&s)
-}
-
-fn valid_separator_byte(b: u8) -> bool {
-    SUPPORTED_SEPARATORS.iter().any(|sep| sep.as_bytes()[0] == b)
 }
 
 fn parse_single_attr<'a, T: WithAttrs + ToTokens>(
