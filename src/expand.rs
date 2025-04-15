@@ -1,21 +1,9 @@
+use crate::{metric::Metric, with_attrs::WithAttrs};
 use quote::{quote, ToTokens};
-use regex::Regex;
-use std::sync::LazyLock;
 use syn::{
     punctuated::Punctuated, Attribute, Data, DeriveInput, Error, Expr, Field, Lit, LitBool, LitStr,
     Meta, MetaNameValue, Result, Token,
 };
-
-use crate::{metric::Metric, with_attrs::WithAttrs};
-
-/// Metric name regex according to Prometheus data model
-///
-/// See <https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels>
-static METRIC_NAME_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z_:.][a-zA-Z0-9_:.]*$").unwrap());
-
-/// Supported metrics separators
-const SUPPORTED_SEPARATORS: &[&str] = &[".", "_", ":"];
 
 enum MetricField<'a> {
     Included(Metric<'a>),
@@ -42,7 +30,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
         /// Describe all exposed metrics. Internally calls `describe_*` macros from
         /// the metrics crate according to the metric type.
         ///
-        /// See <https://docs.rs/metrics/0.20.1/metrics/index.html#macros>
+        /// See <https://docs.rs/metrics/latest/metrics/index.html#macros>
     };
     let register_and_describe = match &metrics_attr.scope {
         MetricsScope::Static(scope) => {
@@ -242,37 +230,21 @@ fn parse_metrics_attr(node: &DeriveInput) -> Result<MetricsAttr> {
         };
         if kv.path.is_ident("scope") {
             if scope.is_some() {
-                return Err(Error::new_spanned(kv, "Duplicate `scope` value provided."));
+                return Err(Error::new_spanned(kv, "duplicate `scope` value provided"));
             }
-            let scope_lit = parse_str_lit(lit)?;
-            validate_metric_name(&scope_lit)?;
-            scope = Some(scope_lit);
+            scope = Some(parse_str_lit(lit)?);
         } else if kv.path.is_ident("separator") {
             if separator.is_some() {
-                return Err(Error::new_spanned(kv, "Duplicate `separator` value provided."));
+                return Err(Error::new_spanned(kv, "duplicate `separator` value provided"));
             }
-            let separator_lit = parse_str_lit(lit)?;
-            if !SUPPORTED_SEPARATORS.contains(&&*separator_lit.value()) {
-                return Err(Error::new_spanned(
-                    kv,
-                    format!(
-                        "Unsupported `separator` value. Supported: {}.",
-                        SUPPORTED_SEPARATORS
-                            .iter()
-                            .map(|sep| format!("`{sep}`"))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                ));
-            }
-            separator = Some(separator_lit);
+            separator = Some(parse_str_lit(lit)?);
         } else if kv.path.is_ident("dynamic") {
             if dynamic.is_some() {
-                return Err(Error::new_spanned(kv, "Duplicate `dynamic` flag provided."));
+                return Err(Error::new_spanned(kv, "duplicate `dynamic` flag provided"));
             }
             dynamic = Some(parse_bool_lit(lit)?.value);
         } else {
-            return Err(Error::new_spanned(kv, "Unsupported attribute entry."));
+            return Err(Error::new_spanned(kv, "unsupported attribute entry"));
         }
     }
 
@@ -280,12 +252,12 @@ fn parse_metrics_attr(node: &DeriveInput) -> Result<MetricsAttr> {
         (Some(scope), None | Some(false)) => MetricsScope::Static(scope),
         (None, Some(true)) => MetricsScope::Dynamic,
         (Some(_), Some(_)) => {
-            return Err(Error::new_spanned(node, "`scope = ..` conflicts with `dynamic = true`."))
+            return Err(Error::new_spanned(node, "`scope = ..` conflicts with `dynamic = true`"))
         }
         _ => {
             return Err(Error::new_spanned(
                 node,
-                "Either `scope = ..` or `dynamic = true` must be set.",
+                "either `scope = ..` or `dynamic = true` must be set",
             ))
         }
     };
@@ -295,7 +267,7 @@ fn parse_metrics_attr(node: &DeriveInput) -> Result<MetricsAttr> {
 
 fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
     let Data::Struct(ref data) = node.data else {
-        return Err(Error::new_spanned(node, "Only structs are supported."));
+        return Err(Error::new_spanned(node, "only structs are supported"));
     };
 
     let mut metrics = Vec::with_capacity(data.fields.len());
@@ -316,7 +288,7 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
                             if describe.is_some() {
                                 return Err(Error::new_spanned(
                                     kv,
-                                    "Duplicate `describe` value provided.",
+                                    "duplicate `describe` value provided",
                                 ));
                             }
                             describe = Some(parse_str_lit(lit)?);
@@ -324,17 +296,15 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
                             if rename.is_some() {
                                 return Err(Error::new_spanned(
                                     kv,
-                                    "Duplicate `rename` value provided.",
+                                    "duplicate `rename` value provided",
                                 ));
                             }
-                            let rename_lit = parse_str_lit(lit)?;
-                            validate_metric_name(&rename_lit)?;
-                            rename = Some(rename_lit)
+                            rename = Some(parse_str_lit(lit)?)
                         } else {
-                            return Err(Error::new_spanned(kv, "Unsupported attribute entry."));
+                            return Err(Error::new_spanned(kv, "unsupported attribute entry"));
                         }
                     }
-                    _ => return Err(Error::new_spanned(meta, "Unsupported attribute entry.")),
+                    _ => return Err(Error::new_spanned(meta, "unsupported attribute entry")),
                 }
             }
         }
@@ -352,7 +322,7 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
                 None => {
                     return Err(Error::new_spanned(
                         field,
-                        "Either doc comment or `describe = ..` must be set.",
+                        "either doc comment or `describe = ..` must be set",
                     ))
                 }
             },
@@ -364,14 +334,6 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
     Ok(metrics)
 }
 
-fn validate_metric_name(name: &LitStr) -> Result<()> {
-    if METRIC_NAME_RE.is_match(&name.value()) {
-        Ok(())
-    } else {
-        Err(Error::new_spanned(name, format!("Value must match regex {}", METRIC_NAME_RE.as_str())))
-    }
-}
-
 fn parse_single_attr<'a, T: WithAttrs + ToTokens>(
     token: &'a T,
     ident: &str,
@@ -381,7 +343,7 @@ fn parse_single_attr<'a, T: WithAttrs + ToTokens>(
         if let Some(next_attr) = attr_iter.next() {
             Err(Error::new_spanned(
                 next_attr,
-                format!("Duplicate `#[{ident}(..)]` attribute provided."),
+                format!("duplicate `#[{ident}(..)]` attribute provided"),
             ))
         } else {
             Ok(Some(attr))
@@ -398,7 +360,7 @@ fn parse_single_required_attr<'a, T: WithAttrs + ToTokens>(
     if let Some(attr) = parse_single_attr(token, ident)? {
         Ok(attr)
     } else {
-        Err(Error::new_spanned(token, format!("`#[{ident}(..)]` attribute must be provided.")))
+        Err(Error::new_spanned(token, format!("`#[{ident}(..)]` attribute must be provided")))
     }
 }
 
@@ -424,13 +386,13 @@ fn parse_docs_to_string<T: WithAttrs>(token: &T) -> Result<Option<String>> {
 fn parse_str_lit(lit: &Lit) -> Result<LitStr> {
     match lit {
         Lit::Str(lit_str) => Ok(lit_str.to_owned()),
-        _ => Err(Error::new_spanned(lit, "Value **must** be a string literal.")),
+        _ => Err(Error::new_spanned(lit, "value must be a string literal")),
     }
 }
 
 fn parse_bool_lit(lit: &Lit) -> Result<LitBool> {
     match lit {
         Lit::Bool(lit_bool) => Ok(lit_bool.to_owned()),
-        _ => Err(Error::new_spanned(lit, "Value **must** be a string literal.")),
+        _ => Err(Error::new_spanned(lit, "value must be a boolean literal")),
     }
 }
