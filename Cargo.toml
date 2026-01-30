@@ -4,7 +4,7 @@ description = "Proc macro for automatically describing and initializing metrics"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/rkrasiuk/metrics-derive"
+repository = "https://github.com/tempoxyz/metrics-derive"
 exclude = [".github/"]
 
 [package.metadata.docs.rs]

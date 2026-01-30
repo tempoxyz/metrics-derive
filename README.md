@@ -1,10 +1,10 @@
 metrics-derive
 ===============
 
-[![Build Status](https://github.com/rkrasiuk/metrics-derive/actions/workflows/ci.yml/badge.svg)](https://github.com/rkrasiuk/metrics-derive/actions)
+[![Build Status](https://github.com/tempoxyz/metrics-derive/actions/workflows/ci.yml/badge.svg)](https://github.com/tempoxyz/metrics-derive/actions)
 [![Crates.io](https://img.shields.io/crates/v/metrics-derive.svg)](https://crates.io/crates/metrics-derive)
 [![Documentation](https://docs.rs/metrics-derive/badge.svg)](https://docs.rs/metrics-derive)
-[![Rust](https://img.shields.io/badge/rust-1.80.0%2B-blue.svg?maxAge=3600)](https://github.com/rkrasiuk/metrics-derive)
+[![Rust](https://img.shields.io/badge/rust-1.80.0%2B-blue.svg?maxAge=3600)](https://github.com/tempoxyz/metrics-derive)
 
 `metrics-derive` provides the `Metrics` derive macro, allowing you to automatically implement metrics description and initialization.
 

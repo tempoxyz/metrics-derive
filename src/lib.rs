@@ -4,7 +4,7 @@
 //!
 //! [`metrics`]: https://docs.rs/metrics
 
-#![doc(issue_tracker_base_url = "https://github.com/rkrasiuk/metrics-derive/issues/")]
+#![doc(issue_tracker_base_url = "https://github.com/tempoxyz/metrics-derive/issues/")]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
