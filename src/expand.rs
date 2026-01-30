@@ -46,18 +46,28 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                                 metrics_attr.separator(),
                                 metric.name()
                             );
-                            let registrar = metric.register_stmt()?;
-                            let describe = metric.describe_stmt()?;
+                            let register_method = metric.register_method()?;
+                            let describe_method = metric.describe_method()?;
                             let description = &metric.description;
                             Ok((
                                 quote! {
-                                    #field_name: #registrar(#metric_name),
+                                    #field_name: {
+                                        static METRIC_KEY: ::metrics::Key = ::metrics::Key::from_static_name(#metric_name);
+                                        __recorder.#register_method(&METRIC_KEY, __metadata)
+                                    },
                                 },
                                 quote! {
-                                    #field_name: #registrar(#metric_name, labels.clone()),
+                                    #field_name: __recorder.#register_method(
+                                        &::metrics::Key::from_parts(#metric_name, __labels.clone()),
+                                        __metadata,
+                                    ),
                                 },
                                 Some(quote! {
-                                    #describe(#metric_name, #description);
+                                    __recorder.#describe_method(
+                                        ::core::convert::Into::into(#metric_name),
+                                        ::core::option::Option::None,
+                                        ::core::convert::Into::into(#description),
+                                    );
                                 }),
                             ))
                         }
@@ -88,23 +98,42 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                     fn default() -> Self {
                         #ty::describe();
 
-                        Self {
-                            #(#defaults)*
-                        }
+                        ::metrics::with_recorder(|__recorder| {
+                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
+                                module_path!(),
+                                ::metrics::Level::INFO,
+                                ::core::option::Option::Some(module_path!()),
+                            );
+                            let __metadata = &__METADATA;
+                            Self {
+                                #(#defaults)*
+                            }
+                        })
                     }
                 }
 
                 impl #ty {
                     /// Create new instance of metrics with provided labels.
-                    #vis fn new_with_labels(labels: impl metrics::IntoLabels + Clone) -> Self {
-                        Self {
-                            #(#labeled_defaults)*
-                        }
+                    #vis fn new_with_labels(labels: impl ::metrics::IntoLabels + Clone) -> Self {
+                        ::metrics::with_recorder(|__recorder| {
+                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
+                                module_path!(),
+                                ::metrics::Level::INFO,
+                                ::core::option::Option::Some(module_path!()),
+                            );
+                            let __metadata = &__METADATA;
+                            let __labels = labels;
+                            Self {
+                                #(#labeled_defaults)*
+                            }
+                        })
                     }
 
                     #describe_doc
                     #vis fn describe() {
-                        #(#describes)*
+                        ::metrics::with_recorder(|__recorder| {
+                            #(#describes)*
+                        });
                     }
                 }
             }
@@ -118,23 +147,33 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                         MetricField::Included(metric) => {
                             let name = metric.name();
                             let separator = metrics_attr.separator();
-                            let metric_name = quote! {
-                                format!("{}{}{}", scope, #separator, #name)
-                            };
 
-                            let registrar = metric.register_stmt()?;
-                            let describe = metric.describe_stmt()?;
+                            let register_method = metric.register_method()?;
+                            let describe_method = metric.describe_method()?;
                             let description = &metric.description;
 
                             Ok((
                                 quote! {
-                                    #field_name: #registrar(#metric_name),
+                                    #field_name: __recorder.#register_method(
+                                        &::metrics::Key::from_name(format!("{}{}{}", __scope, #separator, #name)),
+                                        __metadata,
+                                    ),
                                 },
                                 quote! {
-                                    #field_name: #registrar(#metric_name, labels.clone()),
+                                    #field_name: __recorder.#register_method(
+                                        &::metrics::Key::from_parts(
+                                            format!("{}{}{}", __scope, #separator, #name),
+                                            __labels.clone(),
+                                        ),
+                                        __metadata,
+                                    ),
                                 },
                                 Some(quote! {
-                                    #describe(#metric_name, #description);
+                                    __recorder.#describe_method(
+                                        ::core::convert::Into::into(format!("{}{}{}", __scope, #separator, #name)),
+                                        ::core::option::Option::None,
+                                        ::core::convert::Into::into(#description),
+                                    );
                                 }),
                             ))
                         }
@@ -166,21 +205,43 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                     #vis fn new(scope: &str) -> Self {
                         #ty::describe(scope);
 
-                        Self {
-                            #(#defaults)*
-                        }
+                        ::metrics::with_recorder(|__recorder| {
+                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
+                                module_path!(),
+                                ::metrics::Level::INFO,
+                                ::core::option::Option::Some(module_path!()),
+                            );
+                            let __metadata = &__METADATA;
+                            let __scope = scope;
+                            Self {
+                                #(#defaults)*
+                            }
+                        })
                     }
 
                     /// Create new instance of metrics with provided labels.
-                    #vis fn new_with_labels(scope: &str, labels: impl metrics::IntoLabels + Clone) -> Self {
-                        Self {
-                            #(#labeled_defaults)*
-                        }
+                    #vis fn new_with_labels(scope: &str, labels: impl ::metrics::IntoLabels + Clone) -> Self {
+                        ::metrics::with_recorder(|__recorder| {
+                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
+                                module_path!(),
+                                ::metrics::Level::INFO,
+                                ::core::option::Option::Some(module_path!()),
+                            );
+                            let __metadata = &__METADATA;
+                            let __scope = scope;
+                            let __labels = labels;
+                            Self {
+                                #(#labeled_defaults)*
+                            }
+                        })
                     }
 
                     #describe_doc
                     #vis fn describe(scope: &str) {
-                        #(#describes)*
+                        ::metrics::with_recorder(|__recorder| {
+                            let __scope = scope;
+                            #(#describes)*
+                        });
                     }
                 }
             }

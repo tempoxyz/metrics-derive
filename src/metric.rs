@@ -23,34 +23,34 @@ impl<'a> Metric<'a> {
         }
     }
 
-    pub(crate) fn register_stmt(&self) -> Result<proc_macro2::TokenStream> {
+    pub(crate) fn register_method(&self) -> Result<proc_macro2::TokenStream> {
         if let Type::Path(ref path_ty) = self.field.ty {
             if let Some(last) = path_ty.path.segments.last() {
-                let registrar = match last.ident.to_string().as_str() {
-                    COUNTER_TY => quote! { metrics::counter! },
-                    HISTOGRAM_TY => quote! { metrics::histogram! },
-                    GAUGE_TY => quote! { metrics::gauge! },
+                let method = match last.ident.to_string().as_str() {
+                    COUNTER_TY => quote! { register_counter },
+                    HISTOGRAM_TY => quote! { register_histogram },
+                    GAUGE_TY => quote! { register_gauge },
                     _ => return Err(Error::new_spanned(path_ty, "unsupported metric type")),
                 };
 
-                return Ok(quote! { #registrar });
+                return Ok(method);
             }
         }
 
         Err(Error::new_spanned(&self.field.ty, "unsupported metric type"))
     }
 
-    pub(crate) fn describe_stmt(&self) -> Result<proc_macro2::TokenStream> {
+    pub(crate) fn describe_method(&self) -> Result<proc_macro2::TokenStream> {
         if let Type::Path(ref path_ty) = self.field.ty {
             if let Some(last) = path_ty.path.segments.last() {
-                let descriptor = match last.ident.to_string().as_str() {
-                    COUNTER_TY => quote! { metrics::describe_counter! },
-                    HISTOGRAM_TY => quote! { metrics::describe_histogram! },
-                    GAUGE_TY => quote! { metrics::describe_gauge! },
+                let method = match last.ident.to_string().as_str() {
+                    COUNTER_TY => quote! { describe_counter },
+                    HISTOGRAM_TY => quote! { describe_histogram },
+                    GAUGE_TY => quote! { describe_gauge },
                     _ => return Err(Error::new_spanned(path_ty, "unsupported metric type")),
                 };
 
-                return Ok(quote! { #descriptor });
+                return Ok(method);
             }
         }
 
