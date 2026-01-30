@@ -10,7 +10,7 @@ use std::{
 };
 
 #[allow(dead_code)]
-#[derive(Metrics)]
+#[derive(Clone, Metrics)]
 #[metrics(scope = "metrics_custom")]
 struct CustomMetrics {
     #[metric(skip)]

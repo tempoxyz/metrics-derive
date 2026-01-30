@@ -83,17 +83,42 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                     acc
                 });
 
+            let clone_fields: Vec<_> = metric_fields
+                .iter()
+                .map(|m| {
+                    let field_name = &m.field().ident;
+                    quote! { #field_name: ::core::clone::Clone::clone(&self.#field_name), }
+                })
+                .collect();
+
             quote! {
                 impl Default for #ty {
                     fn default() -> Self {
-                        #ty::describe();
-                        #ty::new_with_labels(::core::slice::Iter::<'_, ::metrics::Label>::default())
+                        Self::new()
                     }
                 }
 
                 impl #ty {
-                    /// Create new instance of metrics with provided labels.
+                    /// Creates a new instance of the metrics.
+                    ///
+                    /// This initializes all metrics and registers them with the global recorder.
+                    /// Metrics are described and registered only once; subsequent calls return
+                    /// a clone of the initially registered metrics.
+                    ///
+                    /// To re-register or register with labels, use [`Self::new_with_labels`].
+                    #vis fn new() -> Self {
+                        static __REGISTER_ONCE: ::std::sync::OnceLock<#ty> = ::std::sync::OnceLock::new();
+                        __REGISTER_ONCE.get_or_init(|| {
+                            Self::new_with_labels(::std::vec::Vec::<::metrics::Label>::new())
+                        })._clone()
+                    }
+
+                    /// Creates a new instance of the metrics with the provided labels.
+                    ///
+                    /// Unlike [`Self::new`], this does not cache the result, so it can be used
+                    /// to re-register metrics or register with different labels.
                     #vis fn new_with_labels(labels: impl ::metrics::IntoLabels + Clone) -> Self {
+                        Self::describe();
                         ::metrics::with_recorder(|__recorder| {
                             static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
                                 module_path!(),
@@ -110,9 +135,19 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
 
                     #describe_doc
                     #vis fn describe() {
+                        static __DESCRIBE_ONCE: ::std::sync::Once = ::std::sync::Once::new();
+                        __DESCRIBE_ONCE.call_once(Self::force_describe);
+                    }
+
+                    /// Unconditionally describes all metrics.
+                    #vis fn force_describe() {
                         ::metrics::with_recorder(|__recorder| {
                             #(#describes)*
                         });
+                    }
+
+                    fn _clone(&self) -> Self {
+                        Self { #(#clone_fields)* }
                     }
                 }
             }
@@ -170,16 +205,29 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
 
             quote! {
                 impl #ty {
-                    /// Create new instance of metrics with provided scope.
+                    /// Creates a new instance of the metrics with the provided scope.
                     ///
-                    /// This will also register the metrics with the global recorder.
+                    /// This initializes all metrics and registers them with the global recorder.
                     #vis fn new(scope: &str) -> Self {
-                        #ty::describe(scope);
-                        #ty::new_with_labels(scope, ::core::slice::Iter::<'_, ::metrics::Label>::default())
+                        Self::describe(scope);
+                        ::metrics::with_recorder(|__recorder| {
+                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
+                                module_path!(),
+                                ::metrics::Level::INFO,
+                                ::core::option::Option::Some(module_path!()),
+                            );
+                            let __metadata = &__METADATA;
+                            let __scope = scope;
+                            let __labels = ::std::vec::Vec::<::metrics::Label>::new();
+                            Self {
+                                #(#field_inits)*
+                            }
+                        })
                     }
 
-                    /// Create new instance of metrics with provided labels.
+                    /// Creates a new instance of the metrics with the provided scope and labels.
                     #vis fn new_with_labels(scope: &str, labels: impl ::metrics::IntoLabels + Clone) -> Self {
+                        Self::describe(scope);
                         ::metrics::with_recorder(|__recorder| {
                             static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
                                 module_path!(),
@@ -197,6 +245,11 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
 
                     #describe_doc
                     #vis fn describe(scope: &str) {
+                        Self::force_describe(scope);
+                    }
+
+                    /// Unconditionally describes all metrics.
+                    #vis fn force_describe(scope: &str) {
                         ::metrics::with_recorder(|__recorder| {
                             let __scope = scope;
                             #(#describes)*
@@ -206,11 +259,12 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
             }
         }
     };
+
     Ok(quote! {
         #register_and_describe
 
-        impl std::fmt::Debug for #ty {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl ::core::fmt::Debug for #ty {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 f.debug_struct(#ident_name).finish()
             }
         }
