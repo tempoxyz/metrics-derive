@@ -1,3 +1,5 @@
+// Use `cargo nextest` to run tests.
+
 #![allow(missing_docs)]
 use metrics::{
     Counter, Gauge, Histogram, Key, KeyName, Label, Metadata, Recorder, SharedString, Unit,
