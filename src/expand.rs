@@ -86,7 +86,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
             quote! {
                 impl Default for #ty {
                     fn default() -> Self {
-                        #ty::f();
+                        #ty::describe();
                         #ty::new_with_labels(::core::slice::Iter::<'_, ::metrics::Label>::default())
                     }
                 }
