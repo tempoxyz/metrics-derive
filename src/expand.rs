@@ -34,7 +34,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
     };
     let register_and_describe = match &metrics_attr.scope {
         MetricsScope::Static(scope) => {
-            let (defaults, labeled_defaults, describes): (Vec<_>, Vec<_>, Vec<_>) = metric_fields
+            let (field_inits, describes): (Vec<_>, Vec<_>) = metric_fields
                 .iter()
                 .map(|metric| {
                     let field_name = &metric.field().ident;
@@ -50,12 +50,6 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                             let describe_method = metric.describe_method()?;
                             let description = &metric.description;
                             Ok((
-                                quote! {
-                                    #field_name: {
-                                        static METRIC_KEY: ::metrics::Key = ::metrics::Key::from_static_name(#metric_name);
-                                        __recorder.#register_method(&METRIC_KEY, __metadata)
-                                    },
-                                },
                                 quote! {
                                     #field_name: __recorder.#register_method(
                                         &::metrics::Key::from_parts(#metric_name, __labels.clone()),
@@ -75,20 +69,16 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                             quote! {
                                 #field_name: Default::default(),
                             },
-                            quote! {
-                                #field_name: Default::default(),
-                            },
                             None,
                         )),
                     }
                 })
                 .collect::<Result<Vec<_>>>()?
                 .into_iter()
-                .fold((vec![], vec![], vec![]), |mut acc, x| {
+                .fold((vec![], vec![]), |mut acc, x| {
                     acc.0.push(x.0);
-                    acc.1.push(x.1);
-                    if let Some(describe) = x.2 {
-                        acc.2.push(describe);
+                    if let Some(describe) = x.1 {
+                        acc.1.push(describe);
                     }
                     acc
                 });
@@ -96,19 +86,8 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
             quote! {
                 impl Default for #ty {
                     fn default() -> Self {
-                        #ty::describe();
-
-                        ::metrics::with_recorder(|__recorder| {
-                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
-                                module_path!(),
-                                ::metrics::Level::INFO,
-                                ::core::option::Option::Some(module_path!()),
-                            );
-                            let __metadata = &__METADATA;
-                            Self {
-                                #(#defaults)*
-                            }
-                        })
+                        #ty::f();
+                        #ty::new_with_labels(::core::slice::Iter::<'_, ::metrics::Label>::default())
                     }
                 }
 
@@ -124,7 +103,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                             let __metadata = &__METADATA;
                             let __labels = labels;
                             Self {
-                                #(#labeled_defaults)*
+                                #(#field_inits)*
                             }
                         })
                     }
@@ -139,7 +118,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
             }
         }
         MetricsScope::Dynamic => {
-            let (defaults, labeled_defaults, describes): (Vec<_>, Vec<_>, Vec<_>) = metric_fields
+            let (field_inits, describes): (Vec<_>, Vec<_>) = metric_fields
                 .iter()
                 .map(|metric| {
                     let field_name = &metric.field().ident;
@@ -153,12 +132,6 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                             let description = &metric.description;
 
                             Ok((
-                                quote! {
-                                    #field_name: __recorder.#register_method(
-                                        &::metrics::Key::from_name(format!("{}{}{}", __scope, #separator, #name)),
-                                        __metadata,
-                                    ),
-                                },
                                 quote! {
                                     #field_name: __recorder.#register_method(
                                         &::metrics::Key::from_parts(
@@ -181,20 +154,16 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                             quote! {
                                 #field_name: Default::default(),
                             },
-                            quote! {
-                                #field_name: Default::default(),
-                            },
                             None,
                         )),
                     }
                 })
                 .collect::<Result<Vec<_>>>()?
                 .into_iter()
-                .fold((vec![], vec![], vec![]), |mut acc, x| {
+                .fold((vec![], vec![]), |mut acc, x| {
                     acc.0.push(x.0);
-                    acc.1.push(x.1);
-                    if let Some(describe) = x.2 {
-                        acc.2.push(describe);
+                    if let Some(describe) = x.1 {
+                        acc.1.push(describe);
                     }
                     acc
                 });
@@ -202,21 +171,11 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
             quote! {
                 impl #ty {
                     /// Create new instance of metrics with provided scope.
+                    ///
+                    /// This will also register the metrics with the global recorder.
                     #vis fn new(scope: &str) -> Self {
                         #ty::describe(scope);
-
-                        ::metrics::with_recorder(|__recorder| {
-                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
-                                module_path!(),
-                                ::metrics::Level::INFO,
-                                ::core::option::Option::Some(module_path!()),
-                            );
-                            let __metadata = &__METADATA;
-                            let __scope = scope;
-                            Self {
-                                #(#defaults)*
-                            }
-                        })
+                        #ty::new_with_labels(scope, ::core::slice::Iter::<'_, ::metrics::Label>::default())
                     }
 
                     /// Create new instance of metrics with provided labels.
@@ -231,7 +190,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                             let __scope = scope;
                             let __labels = labels;
                             Self {
-                                #(#labeled_defaults)*
+                                #(#field_inits)*
                             }
                         })
                     }
