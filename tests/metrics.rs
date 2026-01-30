@@ -3,7 +3,6 @@ use metrics::{
     Counter, Gauge, Histogram, Key, KeyName, Label, Metadata, Recorder, SharedString, Unit,
 };
 use metrics_derive::Metrics;
-use serial_test::serial;
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -114,7 +113,6 @@ fn test_describe(scope: &str) {
 }
 
 #[test]
-#[serial]
 fn describe_metrics() {
     let _guard = RECORDER.enter();
 
@@ -124,7 +122,6 @@ fn describe_metrics() {
 }
 
 #[test]
-#[serial]
 fn describe_dynamic_metrics() {
     let _guard = RECORDER.enter();
 
@@ -168,7 +165,6 @@ fn test_register(scope: &str) {
 }
 
 #[test]
-#[serial]
 fn register_metrics() {
     let _guard = RECORDER.enter();
 
@@ -178,7 +174,6 @@ fn register_metrics() {
 }
 
 #[test]
-#[serial]
 fn register_dynamic_metrics() {
     let _guard = RECORDER.enter();
 
@@ -218,7 +213,6 @@ fn test_labels(scope: &str) {
 }
 
 #[test]
-#[serial]
 fn label_metrics() {
     let _guard = RECORDER.enter();
 
@@ -228,7 +222,6 @@ fn label_metrics() {
 }
 
 #[test]
-#[serial]
 fn dynamic_label_metrics() {
     let _guard = RECORDER.enter();
 
