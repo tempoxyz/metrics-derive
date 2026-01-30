@@ -210,19 +210,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                     /// This initializes all metrics and registers them with the global recorder.
                     #vis fn new(scope: &str) -> Self {
                         Self::describe(scope);
-                        ::metrics::with_recorder(|__recorder| {
-                            static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
-                                module_path!(),
-                                ::metrics::Level::INFO,
-                                ::core::option::Option::Some(module_path!()),
-                            );
-                            let __metadata = &__METADATA;
-                            let __scope = scope;
-                            let __labels = ::std::vec::Vec::<::metrics::Label>::new();
-                            Self {
-                                #(#field_inits)*
-                            }
-                        })
+                        Self::new_with_labels(scope, ::std::vec::Vec::<::metrics::Label>::new())
                     }
 
                     /// Creates a new instance of the metrics with the provided scope and labels.
@@ -245,11 +233,6 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
 
                     #describe_doc
                     #vis fn describe(scope: &str) {
-                        Self::force_describe(scope);
-                    }
-
-                    /// Unconditionally describes all metrics.
-                    #vis fn force_describe(scope: &str) {
                         ::metrics::with_recorder(|__recorder| {
                             let __scope = scope;
                             #(#describes)*
