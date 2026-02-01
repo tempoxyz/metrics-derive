@@ -54,3 +54,11 @@ struct CustomMetrics12;
 #[derive(Metrics)]
 #[metrics(scope = "scope", dynamic = true)]
 struct CustomMetrics13;
+
+#[derive(Metrics)]
+#[metrics(scope = "scope", labels = "not_an_array")]
+struct CustomMetrics14;
+
+#[derive(Metrics)]
+#[metrics(scope = "scope", labels = [], labels = [])]
+struct CustomMetrics15;

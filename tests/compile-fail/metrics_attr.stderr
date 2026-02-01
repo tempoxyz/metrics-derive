@@ -17,12 +17,11 @@ error: either `scope = ..` or `dynamic = true` must be set
 16 | | struct CustomMetrics3;
    | |______________________^
 
-error: either `scope = ..` or `dynamic = true` must be set
-  --> tests/compile-fail/metrics_attr.rs:19:1
+error: value must be a literal
+  --> tests/compile-fail/metrics_attr.rs:19:19
    |
-19 | / #[metrics(scope = value)]
-20 | | struct CustomMetrics4;
-   | |______________________^
+19 | #[metrics(scope = value)]
+   |                   ^^^^^
 
 error: value must be a string literal
   --> tests/compile-fail/metrics_attr.rs:23:19
@@ -36,12 +35,11 @@ error: duplicate `scope` value provided
 31 | #[metrics(scope = "some_scope", scope = "another_scope")]
    |                                 ^^^^^^^^^^^^^^^^^^^^^^^
 
-error: either `scope = ..` or `dynamic = true` must be set
-  --> tests/compile-fail/metrics_attr.rs:35:1
+error: value must be a literal
+  --> tests/compile-fail/metrics_attr.rs:35:23
    |
-35 | / #[metrics(separator = value)]
-36 | | struct CustomMetrics8;
-   | |______________________^
+35 | #[metrics(separator = value)]
+   |                       ^^^^^
 
 error: value must be a string literal
   --> tests/compile-fail/metrics_attr.rs:39:23
@@ -74,3 +72,15 @@ error: `scope = ..` conflicts with `dynamic = true`
 55 | / #[metrics(scope = "scope", dynamic = true)]
 56 | | struct CustomMetrics13;
    | |_______________________^
+
+error: labels must be an array of tuples, e.g. `labels = [("key", "value")]`
+  --> tests/compile-fail/metrics_attr.rs:59:37
+   |
+59 | #[metrics(scope = "scope", labels = "not_an_array")]
+   |                                     ^^^^^^^^^^^^^^
+
+error: duplicate `labels` value provided
+  --> tests/compile-fail/metrics_attr.rs:63:41
+   |
+63 | #[metrics(scope = "scope", labels = [], labels = [])]
+   |                                         ^^^^^^^^^^^

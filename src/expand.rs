@@ -29,6 +29,18 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
     let metrics_attr = parse_metrics_attr(node)?;
     let metric_fields = parse_metric_fields(node)?;
 
+    let global_labels_init = if metrics_attr.labels.is_empty() {
+        quote! {}
+    } else {
+        let label_keys = metrics_attr.labels.iter().map(|(k, _)| k);
+        let label_values = metrics_attr.labels.iter().map(|(_, v)| v);
+        quote! {
+            __labels.extend([
+                #(metrics::Label::new(#label_keys, #label_values)),*
+            ]);
+        }
+    };
+
     let register_and_describe = match &metrics_attr.scope {
         MetricsScope::Static(scope) => {
             let mut field_inits = Vec::with_capacity(metric_fields.len());
@@ -133,7 +145,9 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                                 ::core::option::Option::Some(module_path!()),
                             );
                             let __metadata = &__METADATA;
-                            let __labels = labels;
+                            #[allow(unused_mut)]
+                            let mut __labels = labels;
+                            #global_labels_init
                             Self {
                                 #(#field_inits)*
                             }
@@ -260,7 +274,9 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                             );
                             let __metadata = &__METADATA;
                             let __scope = scope;
-                            let __labels = labels;
+                            #[allow(unused_mut)]
+                            let mut __labels = labels;
+                            #global_labels_init
                             Self {
                                 #(#field_inits)*
                             }
@@ -296,6 +312,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
 pub(crate) struct MetricsAttr {
     pub(crate) scope: MetricsScope,
     pub(crate) separator: Option<LitStr>,
+    pub(crate) labels: Vec<LabelPair>,
 }
 
 impl MetricsAttr {
@@ -318,11 +335,19 @@ fn parse_metrics_attr(node: &DeriveInput) -> Result<MetricsAttr> {
     let metrics_attr = parse_single_required_attr(node, "metrics")?;
     let parsed =
         metrics_attr.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
-    let (mut scope, mut separator, mut dynamic) = (None, None, None);
+    let (mut scope, mut separator, mut dynamic, mut labels) = (None, None, None, None);
     for kv in parsed {
+        if kv.path.is_ident("labels") {
+            if labels.is_some() {
+                return Err(Error::new_spanned(kv, "duplicate `labels` value provided"));
+            }
+            labels = Some(parse_labels_expr(&kv.value)?);
+            continue;
+        }
+
         let lit = match kv.value {
             Expr::Lit(ref expr) => &expr.lit,
-            _ => continue,
+            _ => return Err(Error::new_spanned(&kv.value, "value must be a literal")),
         };
         if kv.path.is_ident("scope") {
             if scope.is_some() {
@@ -358,7 +383,8 @@ fn parse_metrics_attr(node: &DeriveInput) -> Result<MetricsAttr> {
         }
     };
 
-    Ok(MetricsAttr { scope, separator })
+    let labels = labels.unwrap_or_default();
+    Ok(MetricsAttr { scope, separator, labels })
 }
 
 fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {

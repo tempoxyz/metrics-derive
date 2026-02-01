@@ -98,6 +98,27 @@ struct DynamicFieldLabelMetrics {
     dropped: Counter,
 }
 
+/// Tests global labels on the struct attribute (static scope).
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(scope = "global_test", labels = [("service", "api"), ("version", "v1")])]
+struct GlobalLabelMetrics {
+    /// A counter.
+    requests: Counter,
+    /// A counter with field-level labels too.
+    #[metric(labels = [("method", "GET")])]
+    get_requests: Counter,
+}
+
+/// Tests global labels with dynamic scope.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(dynamic = true, labels = [("env", "prod")])]
+struct DynamicGlobalLabelMetrics {
+    /// A counter.
+    requests: Counter,
+}
+
 static RECORDER: LazyLock<TestRecorder> = LazyLock::new(TestRecorder::new);
 
 fn test_describe(scope: &str) {
@@ -310,6 +331,75 @@ fn field_labels_dynamic() {
     assert_eq!(labels.len(), 2);
     assert!(labels.contains(&Label::new("env", "staging")));
     assert!(labels.contains(&Label::new("outcome", "dropped")));
+}
+
+#[test]
+fn global_labels_static() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = GlobalLabelMetrics::default();
+
+    // Check "requests" has global labels only
+    let metric = RECORDER.get_metric("global_test.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 2);
+    assert!(labels.contains(&Label::new("service", "api")));
+    assert!(labels.contains(&Label::new("version", "v1")));
+}
+
+#[test]
+fn global_labels_with_field_labels() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = GlobalLabelMetrics::default();
+
+    // Check "get_requests" has global labels + field labels
+    let metric = RECORDER.get_metric("global_test.get_requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    let labels = metric.labels.unwrap();
+    // Global: service=api, version=v1; Field: method=GET
+    assert_eq!(labels.len(), 3);
+    assert!(labels.contains(&Label::new("service", "api")));
+    assert!(labels.contains(&Label::new("version", "v1")));
+    assert!(labels.contains(&Label::new("method", "GET")));
+}
+
+#[test]
+fn global_labels_dynamic() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = DynamicGlobalLabelMetrics::new("dyn");
+
+    let metric = RECORDER.get_metric("dyn.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 1);
+    assert!(labels.contains(&Label::new("env", "prod")));
+}
+
+#[test]
+fn global_labels_with_new_with_labels() {
+    let _guard = RECORDER.enter();
+
+    // Instance labels + global labels should combine
+    let _metrics = GlobalLabelMetrics::new_with_labels(&[("instance", "i-123")]);
+
+    let metric = RECORDER.get_metric("global_test.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    let labels = metric.labels.unwrap();
+    // Instance: instance=i-123; Global: service=api, version=v1
+    assert_eq!(labels.len(), 3);
+    assert!(labels.contains(&Label::new("instance", "i-123")));
+    assert!(labels.contains(&Label::new("service", "api")));
+    assert!(labels.contains(&Label::new("version", "v1")));
 }
 
 struct TestRecorder {
