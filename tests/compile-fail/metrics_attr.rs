@@ -62,3 +62,7 @@ struct CustomMetrics14;
 #[derive(Metrics)]
 #[metrics(scope = "scope", labels = [], labels = [])]
 struct CustomMetrics15;
+
+#[derive(Metrics)]
+#[metrics(scope = "scope", labels = [("key", "value1"), ("key", "value2")])]
+struct CustomMetrics16;

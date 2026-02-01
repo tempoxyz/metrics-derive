@@ -84,3 +84,9 @@ error: duplicate `labels` value provided
    |
 63 | #[metrics(scope = "scope", labels = [], labels = [])]
    |                                         ^^^^^^^^^^^
+
+error: duplicate label key `key`
+  --> tests/compile-fail/metrics_attr.rs:67:58
+   |
+67 | #[metrics(scope = "scope", labels = [("key", "value1"), ("key", "value2")])]
+   |                                                          ^^^^^

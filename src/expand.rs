@@ -544,6 +544,8 @@ fn parse_labels_expr(expr: &Expr) -> Result<Vec<LabelPair>> {
     };
 
     let mut labels = Vec::with_capacity(arr.elems.len());
+    let mut seen_keys = std::collections::HashSet::new();
+
     for elem in &arr.elems {
         let Expr::Tuple(ExprTuple { elems, .. }) = elem else {
             return Err(Error::new_spanned(
@@ -561,6 +563,13 @@ fn parse_labels_expr(expr: &Expr) -> Result<Vec<LabelPair>> {
 
         // Key must be a string literal
         let key = parse_str_lit(parse_expr_lit(&elems[0])?)?;
+
+        // Check for duplicate keys
+        let key_str = key.value();
+        if !seen_keys.insert(key_str.clone()) {
+            return Err(Error::new_spanned(&elems[0], format!("duplicate label key `{key_str}`")));
+        }
+
         // Value can be any expression (string literal, constant, etc.)
         let value = elems[1].clone();
         labels.push((key, value));

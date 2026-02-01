@@ -76,3 +76,9 @@ error: duplicate `labels` value provided
    |
 95 |     #[metric(describe = "gauge", labels = [], labels = [])]
    |                                               ^^^^^^^^^^^
+
+error: duplicate label key `key`
+   --> tests/compile-fail/metric_attr.rs:102:64
+    |
+102 |     #[metric(describe = "gauge", labels = [("key", "value1"), ("key", "value2")])]
+    |                                                                ^^^^^

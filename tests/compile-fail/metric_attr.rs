@@ -95,3 +95,10 @@ struct CustomMetrics13 {
     #[metric(describe = "gauge", labels = [], labels = [])]
     gauge: Gauge,
 }
+
+#[derive(Metrics)]
+#[metrics(scope = "some_scope")]
+struct CustomMetrics14 {
+    #[metric(describe = "gauge", labels = [("key", "value1"), ("key", "value2")])]
+    gauge: Gauge,
+}
