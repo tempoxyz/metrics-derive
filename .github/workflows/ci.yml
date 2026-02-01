@@ -27,6 +27,7 @@ jobs:
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
       - run: cargo build --workspace
+      - run: cargo test --doc --workspace
       - run: cargo nextest run --workspace
 
   clippy:
