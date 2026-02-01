@@ -1,8 +1,11 @@
-use crate::{metric::Metric, with_attrs::WithAttrs};
+use crate::{
+    metric::{LabelPair, Metric},
+    with_attrs::WithAttrs,
+};
 use quote::{quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, Attribute, Data, DeriveInput, Error, Expr, Field, Lit, LitBool, LitStr,
-    Meta, MetaNameValue, Result, Token,
+    punctuated::Punctuated, Attribute, Data, DeriveInput, Error, Expr, ExprTuple, Field, Lit,
+    LitBool, LitStr, Meta, MetaNameValue, Result, Token,
 };
 
 enum MetricField<'a> {
@@ -45,11 +48,33 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                         let register_method = metric.register_method()?;
                         let describe_method = metric.describe_method()?;
                         let description = &metric.description;
+
+                        let field_init = if metric.labels.is_empty() {
+                            quote! {
+                                __recorder.#register_method(
+                                    &metrics::Key::from_parts(#metric_name, __labels.clone()),
+                                    __metadata,
+                                )
+                            }
+                        } else {
+                            let label_keys = metric.labels.iter().map(|(k, _)| k);
+                            let label_values = metric.labels.iter().map(|(_, v)| v);
+                            quote! {
+                                {
+                                    let mut __field_labels = __labels.clone();
+                                    __field_labels.extend([
+                                        #(metrics::Label::new(#label_keys, #label_values)),*
+                                    ]);
+                                    __recorder.#register_method(
+                                        &metrics::Key::from_parts(#metric_name, __field_labels),
+                                        __metadata,
+                                    )
+                                }
+                            }
+                        };
+
                         field_inits.push(quote! {
-                            #field_name: __recorder.#register_method(
-                                &metrics::Key::from_parts(#metric_name, __labels.clone()),
-                                __metadata,
-                            ),
+                            #field_name: #field_init,
                         });
                         describes.push(quote! {
                             __recorder.#describe_method(
@@ -162,14 +187,38 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                         let describe_method = metric.describe_method()?;
                         let description = &metric.description;
 
+                        let field_init = if metric.labels.is_empty() {
+                            quote! {
+                                __recorder.#register_method(
+                                    &metrics::Key::from_parts(
+                                        format!("{}{}{}", __scope, #separator, #name),
+                                        __labels.clone(),
+                                    ),
+                                    __metadata,
+                                )
+                            }
+                        } else {
+                            let label_keys = metric.labels.iter().map(|(k, _)| k);
+                            let label_values = metric.labels.iter().map(|(_, v)| v);
+                            quote! {
+                                {
+                                    let mut __field_labels = __labels.clone();
+                                    __field_labels.extend([
+                                        #(metrics::Label::new(#label_keys, #label_values)),*
+                                    ]);
+                                    __recorder.#register_method(
+                                        &metrics::Key::from_parts(
+                                            format!("{}{}{}", __scope, #separator, #name),
+                                            __field_labels,
+                                        ),
+                                        __metadata,
+                                    )
+                                }
+                            }
+                        };
+
                         field_inits.push(quote! {
-                            #field_name: __recorder.#register_method(
-                                &metrics::Key::from_parts(
-                                    format!("{}{}{}", __scope, #separator, #name),
-                                    __labels.clone(),
-                                ),
-                                __metadata,
-                            ),
+                            #field_name: #field_init,
                         });
                         describes.push(quote! {
                             __recorder.#describe_method(
@@ -319,7 +368,7 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
 
     let mut metrics = Vec::with_capacity(data.fields.len());
     for field in &data.fields {
-        let (mut describe, mut rename, mut skip) = (None, None, false);
+        let (mut describe, mut rename, mut labels, mut skip) = (None, None, None, false);
         if let Some(metric_attr) = parse_single_attr(field, "metric")? {
             let parsed =
                 metric_attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
@@ -327,17 +376,22 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
                 match meta {
                     Meta::Path(path) if path.is_ident("skip") => skip = true,
                     Meta::NameValue(kv) => {
-                        let lit = match kv.value {
-                            Expr::Lit(ref expr) => &expr.lit,
-                            _ => continue,
-                        };
-                        if kv.path.is_ident("describe") {
+                        if kv.path.is_ident("labels") {
+                            if labels.is_some() {
+                                return Err(Error::new_spanned(
+                                    kv,
+                                    "duplicate `labels` value provided",
+                                ));
+                            }
+                            labels = Some(parse_labels_expr(&kv.value)?);
+                        } else if kv.path.is_ident("describe") {
                             if describe.is_some() {
                                 return Err(Error::new_spanned(
                                     kv,
                                     "duplicate `describe` value provided",
                                 ));
                             }
+                            let lit = parse_expr_lit(&kv.value)?;
                             describe = Some(parse_str_lit(lit)?);
                         } else if kv.path.is_ident("rename") {
                             if rename.is_some() {
@@ -346,7 +400,8 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
                                     "duplicate `rename` value provided",
                                 ));
                             }
-                            rename = Some(parse_str_lit(lit)?)
+                            let lit = parse_expr_lit(&kv.value)?;
+                            rename = Some(parse_str_lit(lit)?);
                         } else {
                             return Err(Error::new_spanned(kv, "unsupported attribute entry"));
                         }
@@ -375,7 +430,8 @@ fn parse_metric_fields(node: &DeriveInput) -> Result<Vec<MetricField<'_>>> {
             },
         };
 
-        metrics.push(MetricField::Included(Metric::new(field, description, rename)));
+        let labels = labels.unwrap_or_default();
+        metrics.push(MetricField::Included(Metric::new(field, description, rename, labels)));
     }
 
     Ok(metrics)
@@ -442,4 +498,44 @@ fn parse_bool_lit(lit: &Lit) -> Result<LitBool> {
         Lit::Bool(lit_bool) => Ok(lit_bool.to_owned()),
         _ => Err(Error::new_spanned(lit, "value must be a boolean literal")),
     }
+}
+
+fn parse_expr_lit(expr: &Expr) -> Result<&Lit> {
+    match expr {
+        Expr::Lit(expr_lit) => Ok(&expr_lit.lit),
+        _ => Err(Error::new_spanned(expr, "value must be a literal")),
+    }
+}
+
+/// Parses `labels = [("key", "value"), ...]` into a vector of label pairs.
+fn parse_labels_expr(expr: &Expr) -> Result<Vec<LabelPair>> {
+    let Expr::Array(arr) = expr else {
+        return Err(Error::new_spanned(
+            expr,
+            "labels must be an array of tuples, e.g. `labels = [(\"key\", \"value\")]`",
+        ));
+    };
+
+    let mut labels = Vec::with_capacity(arr.elems.len());
+    for elem in &arr.elems {
+        let Expr::Tuple(ExprTuple { elems, .. }) = elem else {
+            return Err(Error::new_spanned(
+                elem,
+                "each label must be a tuple of two strings, e.g. `(\"key\", \"value\")`",
+            ));
+        };
+
+        if elems.len() != 2 {
+            return Err(Error::new_spanned(
+                elem,
+                "each label tuple must have exactly two elements: (key, value)",
+            ));
+        }
+
+        let key = parse_str_lit(parse_expr_lit(&elems[0])?)?;
+        let value = parse_str_lit(parse_expr_lit(&elems[1])?)?;
+        labels.push((key, value));
+    }
+
+    Ok(labels)
 }

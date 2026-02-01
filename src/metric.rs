@@ -5,15 +5,24 @@ const COUNTER_TY: &str = "Counter";
 const HISTOGRAM_TY: &str = "Histogram";
 const GAUGE_TY: &str = "Gauge";
 
+/// A parsed label pair (key, value) from `#[metric(labels = [("k", "v"), ...])]`.
+pub(crate) type LabelPair = (LitStr, LitStr);
+
 pub(crate) struct Metric<'a> {
     pub(crate) field: &'a Field,
     pub(crate) description: String,
+    pub(crate) labels: Vec<LabelPair>,
     rename: Option<LitStr>,
 }
 
 impl<'a> Metric<'a> {
-    pub(crate) const fn new(field: &'a Field, description: String, rename: Option<LitStr>) -> Self {
-        Self { field, description, rename }
+    pub(crate) fn new(
+        field: &'a Field,
+        description: String,
+        rename: Option<LitStr>,
+        labels: Vec<LabelPair>,
+    ) -> Self {
+        Self { field, description, rename, labels }
     }
 
     pub(crate) fn name(&self) -> String {
