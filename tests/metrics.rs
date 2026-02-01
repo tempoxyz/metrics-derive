@@ -13,7 +13,7 @@ use std::{
 #[allow(dead_code)]
 #[derive(Clone, Metrics)]
 #[metrics(scope = "metrics_custom")]
-struct CustomMetrics {
+pub struct CustomMetrics {
     #[metric(skip)]
     skipped_field_a: u8,
     /// A gauge with doc comment description.
@@ -34,6 +34,13 @@ struct CustomMetrics {
     histo: Histogram,
     #[metric(skip)]
     skipped_field_e: u128,
+}
+
+impl CustomMetrics {
+    /// Custom new fn.
+    pub fn new() -> Self {
+        Self::new_with_labels(&[("type", "custom")])
+    }
 }
 
 #[allow(dead_code)]

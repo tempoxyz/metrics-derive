@@ -26,12 +26,6 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
     let metrics_attr = parse_metrics_attr(node)?;
     let metric_fields = parse_metric_fields(node)?;
 
-    let describe_doc = quote! {
-        /// Describe all exposed metrics. Internally calls `describe_*` macros from
-        /// the metrics crate according to the metric type.
-        ///
-        /// See <https://docs.rs/metrics/latest/metrics/index.html#macros>
-    };
     let register_and_describe = match &metrics_attr.scope {
         MetricsScope::Static(scope) => {
             let (field_inits, describes): (Vec<_>, Vec<_>) = metric_fields
@@ -93,31 +87,25 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
 
             quote! {
                 impl Default for #ty {
+                    /// Creates a new instance of the metrics.
+                    ///
+                    /// This initializes all metrics and registers them with the global recorder.
+                    /// Metrics are described only once; see [`Self::describe`].
                     fn default() -> Self {
-                        Self::new()
+                        Self::_new_with_labels(::std::vec::Vec::<::metrics::Label>::new())
                     }
                 }
 
                 impl #ty {
-                    /// Creates a new instance of the metrics.
-                    ///
-                    /// This initializes all metrics and registers them with the global recorder.
-                    /// Metrics are described and registered only once; subsequent calls return
-                    /// a clone of the initially registered metrics.
-                    ///
-                    /// To re-register or register with labels, use [`Self::new_with_labels`].
-                    #vis fn new() -> Self {
-                        static __REGISTER_ONCE: ::std::sync::OnceLock<#ty> = ::std::sync::OnceLock::new();
-                        __REGISTER_ONCE.get_or_init(|| {
-                            Self::new_with_labels(::std::vec::Vec::<::metrics::Label>::new())
-                        })._clone()
-                    }
-
                     /// Creates a new instance of the metrics with the provided labels.
                     ///
-                    /// Unlike [`Self::new`], this does not cache the result, so it can be used
+                    /// Unlike [`Self::default`], this does not cache the result, so it can be used
                     /// to re-register metrics or register with different labels.
-                    #vis fn new_with_labels(labels: impl ::metrics::IntoLabels + Clone) -> Self {
+                    #vis fn new_with_labels(labels: impl ::metrics::IntoLabels) -> Self {
+                        Self::_new_with_labels(labels.into_labels())
+                    }
+
+                    fn _new_with_labels(labels: ::std::vec::Vec<::metrics::Label>) -> Self {
                         Self::describe();
                         ::metrics::with_recorder(|__recorder| {
                             static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
@@ -133,13 +121,24 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                         })
                     }
 
-                    #describe_doc
+                    /// Describe all exposed metrics.
+                    ///
+                    /// Internally, this calls the `describe_*` macros from the metrics crate
+                    /// according to the metric type.
+                    ///
+                    /// This is done only once, to avoid multiple `describe` calls to the same
+                    /// recorder. If this is not preferred, you can call [`Self::force_describe`]
+                    /// directly.
+                    ///
+                    /// See: <https://docs.rs/metrics/latest/metrics/index.html#macros>
                     #vis fn describe() {
                         static __DESCRIBE_ONCE: ::std::sync::Once = ::std::sync::Once::new();
                         __DESCRIBE_ONCE.call_once(Self::force_describe);
                     }
 
                     /// Unconditionally describes all metrics.
+                    ///
+                    /// See [`Self::describe`].
                     #vis fn force_describe() {
                         ::metrics::with_recorder(|__recorder| {
                             #(#describes)*
@@ -209,12 +208,15 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                     ///
                     /// This initializes all metrics and registers them with the global recorder.
                     #vis fn new(scope: &str) -> Self {
-                        Self::describe(scope);
-                        Self::new_with_labels(scope, ::std::vec::Vec::<::metrics::Label>::new())
+                        Self::_new_with_labels(scope, ::std::vec::Vec::<::metrics::Label>::new())
                     }
 
                     /// Creates a new instance of the metrics with the provided scope and labels.
-                    #vis fn new_with_labels(scope: &str, labels: impl ::metrics::IntoLabels + Clone) -> Self {
+                    #vis fn new_with_labels(scope: &str, labels: impl ::metrics::IntoLabels) -> Self {
+                        Self::_new_with_labels(scope, labels.into_labels())
+                    }
+
+                    fn _new_with_labels(scope: &str, labels: ::std::vec::Vec<::metrics::Label>) -> Self {
                         Self::describe(scope);
                         ::metrics::with_recorder(|__recorder| {
                             static __METADATA: ::metrics::Metadata<'static> = ::metrics::Metadata::new(
@@ -231,7 +233,10 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                         })
                     }
 
-                    #describe_doc
+                    /// Describe all exposed metrics. Internally calls `describe_*` macros from
+                    /// the metrics crate according to the metric type.
+                    ///
+                    /// See: <https://docs.rs/metrics/latest/metrics/index.html#macros>
                     #vis fn describe(scope: &str) {
                         ::metrics::with_recorder(|__recorder| {
                             let __scope = scope;
