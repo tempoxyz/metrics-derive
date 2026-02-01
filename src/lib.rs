@@ -191,6 +191,22 @@ mod with_attrs;
 /// ```
 ///
 /// Label order: instance labels (from `new_with_labels`) → global labels → field labels.
+///
+/// Label values can also be arbitrary expressions, such as constants:
+///
+/// ```
+/// use metrics::Counter;
+/// use metrics_derive::Metrics;
+///
+/// const SERVICE_NAME: &str = "gateway";
+///
+/// #[derive(Metrics)]
+/// #[metrics(scope = "api", labels = [("service", SERVICE_NAME)])]
+/// pub struct ConstLabelMetrics {
+///     /// Total requests.
+///     requests: Counter,
+/// }
+/// ```
 #[proc_macro_derive(Metrics, attributes(metrics, metric))]
 pub fn derive_metrics(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

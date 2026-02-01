@@ -53,13 +53,13 @@ error: labels must be an array of tuples, e.g. `labels = [("key", "value")]`
 67 |     #[metric(describe = "gauge", labels = "not_an_array")]
    |                                           ^^^^^^^^^^^^^^
 
-error: each label must be a tuple of two strings, e.g. `("key", "value")`
+error: each label must be a tuple, e.g. `("key", "value")` or `("key", CONST)`
   --> tests/compile-fail/metric_attr.rs:74:44
    |
 74 |     #[metric(describe = "gauge", labels = ["not_a_tuple"])]
    |                                            ^^^^^^^^^^^^^
 
-error: each label must be a tuple of two strings, e.g. `("key", "value")`
+error: each label must be a tuple, e.g. `("key", "value")` or `("key", CONST)`
   --> tests/compile-fail/metric_attr.rs:81:44
    |
 81 |     #[metric(describe = "gauge", labels = [("only_one")])]

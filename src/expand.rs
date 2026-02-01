@@ -533,7 +533,8 @@ fn parse_expr_lit(expr: &Expr) -> Result<&Lit> {
     }
 }
 
-/// Parses `labels = [("key", "value"), ...]` into a vector of label pairs.
+/// Parses `labels = [("key", expr), ...]` into a vector of label pairs.
+/// Keys must be string literals; values can be arbitrary expressions.
 fn parse_labels_expr(expr: &Expr) -> Result<Vec<LabelPair>> {
     let Expr::Array(arr) = expr else {
         return Err(Error::new_spanned(
@@ -547,7 +548,7 @@ fn parse_labels_expr(expr: &Expr) -> Result<Vec<LabelPair>> {
         let Expr::Tuple(ExprTuple { elems, .. }) = elem else {
             return Err(Error::new_spanned(
                 elem,
-                "each label must be a tuple of two strings, e.g. `(\"key\", \"value\")`",
+                "each label must be a tuple, e.g. `(\"key\", \"value\")` or `(\"key\", CONST)`",
             ));
         };
 
@@ -558,8 +559,10 @@ fn parse_labels_expr(expr: &Expr) -> Result<Vec<LabelPair>> {
             ));
         }
 
+        // Key must be a string literal
         let key = parse_str_lit(parse_expr_lit(&elems[0])?)?;
-        let value = parse_str_lit(parse_expr_lit(&elems[1])?)?;
+        // Value can be any expression (string literal, constant, etc.)
+        let value = elems[1].clone();
         labels.push((key, value));
     }
 
