@@ -77,14 +77,6 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                     acc
                 });
 
-            let clone_fields: Vec<_> = metric_fields
-                .iter()
-                .map(|m| {
-                    let field_name = &m.field().ident;
-                    quote! { #field_name: ::core::clone::Clone::clone(&self.#field_name), }
-                })
-                .collect();
-
             quote! {
                 impl Default for #ty {
                     /// Creates a new instance of the metrics.
@@ -143,10 +135,6 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                         ::metrics::with_recorder(|__recorder| {
                             #(#describes)*
                         });
-                    }
-
-                    fn _clone(&self) -> Self {
-                        Self { #(#clone_fields)* }
                     }
                 }
             }
