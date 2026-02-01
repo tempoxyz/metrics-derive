@@ -28,54 +28,43 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
 
     let register_and_describe = match &metrics_attr.scope {
         MetricsScope::Static(scope) => {
-            let (field_inits, describes): (Vec<_>, Vec<_>) = metric_fields
-                .iter()
-                .map(|metric| {
-                    let field_name = &metric.field().ident;
-                    match metric {
-                        MetricField::Included(metric) => {
-                            let metric_name = format!(
-                                "{}{}{}",
-                                scope.value(),
-                                metrics_attr.separator(),
-                                metric.name()
+            let mut field_inits = Vec::with_capacity(metric_fields.len());
+            let mut describes = Vec::with_capacity(metric_fields.len());
+
+            for metric in &metric_fields {
+                let field_name = &metric.field().ident;
+                match metric {
+                    MetricField::Included(metric) => {
+                        let metric_name = format!(
+                            "{}{}{}",
+                            scope.value(),
+                            metrics_attr.separator(),
+                            metric.name()
+                        );
+                        let register_method = metric.register_method()?;
+                        let describe_method = metric.describe_method()?;
+                        let description = &metric.description;
+                        field_inits.push(quote! {
+                            #field_name: __recorder.#register_method(
+                                &::metrics::Key::from_parts(#metric_name, __labels.clone()),
+                                __metadata,
+                            ),
+                        });
+                        describes.push(quote! {
+                            __recorder.#describe_method(
+                                ::core::convert::Into::into(#metric_name),
+                                ::core::option::Option::None,
+                                ::core::convert::Into::into(#description),
                             );
-                            let register_method = metric.register_method()?;
-                            let describe_method = metric.describe_method()?;
-                            let description = &metric.description;
-                            Ok((
-                                quote! {
-                                    #field_name: __recorder.#register_method(
-                                        &::metrics::Key::from_parts(#metric_name, __labels.clone()),
-                                        __metadata,
-                                    ),
-                                },
-                                Some(quote! {
-                                    __recorder.#describe_method(
-                                        ::core::convert::Into::into(#metric_name),
-                                        ::core::option::Option::None,
-                                        ::core::convert::Into::into(#description),
-                                    );
-                                }),
-                            ))
-                        }
-                        MetricField::Skipped(_) => Ok((
-                            quote! {
-                                #field_name: Default::default(),
-                            },
-                            None,
-                        )),
+                        });
                     }
-                })
-                .collect::<Result<Vec<_>>>()?
-                .into_iter()
-                .fold((vec![], vec![]), |mut acc, x| {
-                    acc.0.push(x.0);
-                    if let Some(describe) = x.1 {
-                        acc.1.push(describe);
+                    MetricField::Skipped(_) => {
+                        field_inits.push(quote! {
+                            #field_name: Default::default(),
+                        });
                     }
-                    acc
-                });
+                }
+            }
 
             quote! {
                 impl Default for #ty {
@@ -140,55 +129,44 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
             }
         }
         MetricsScope::Dynamic => {
-            let (field_inits, describes): (Vec<_>, Vec<_>) = metric_fields
-                .iter()
-                .map(|metric| {
-                    let field_name = &metric.field().ident;
-                    match metric {
-                        MetricField::Included(metric) => {
-                            let name = metric.name();
-                            let separator = metrics_attr.separator();
+            let mut field_inits = Vec::with_capacity(metric_fields.len());
+            let mut describes = Vec::with_capacity(metric_fields.len());
 
-                            let register_method = metric.register_method()?;
-                            let describe_method = metric.describe_method()?;
-                            let description = &metric.description;
+            for metric in &metric_fields {
+                let field_name = &metric.field().ident;
+                match metric {
+                    MetricField::Included(metric) => {
+                        let name = metric.name();
+                        let separator = metrics_attr.separator();
 
-                            Ok((
-                                quote! {
-                                    #field_name: __recorder.#register_method(
-                                        &::metrics::Key::from_parts(
-                                            format!("{}{}{}", __scope, #separator, #name),
-                                            __labels.clone(),
-                                        ),
-                                        __metadata,
-                                    ),
-                                },
-                                Some(quote! {
-                                    __recorder.#describe_method(
-                                        ::core::convert::Into::into(format!("{}{}{}", __scope, #separator, #name)),
-                                        ::core::option::Option::None,
-                                        ::core::convert::Into::into(#description),
-                                    );
-                                }),
-                            ))
-                        }
-                        MetricField::Skipped(_) => Ok((
-                            quote! {
-                                #field_name: Default::default(),
-                            },
-                            None,
-                        )),
+                        let register_method = metric.register_method()?;
+                        let describe_method = metric.describe_method()?;
+                        let description = &metric.description;
+
+                        field_inits.push(quote! {
+                            #field_name: __recorder.#register_method(
+                                &::metrics::Key::from_parts(
+                                    format!("{}{}{}", __scope, #separator, #name),
+                                    __labels.clone(),
+                                ),
+                                __metadata,
+                            ),
+                        });
+                        describes.push(quote! {
+                            __recorder.#describe_method(
+                                ::core::convert::Into::into(format!("{}{}{}", __scope, #separator, #name)),
+                                ::core::option::Option::None,
+                                ::core::convert::Into::into(#description),
+                            );
+                        });
                     }
-                })
-                .collect::<Result<Vec<_>>>()?
-                .into_iter()
-                .fold((vec![], vec![]), |mut acc, x| {
-                    acc.0.push(x.0);
-                    if let Some(describe) = x.1 {
-                        acc.1.push(describe);
+                    MetricField::Skipped(_) => {
+                        field_inits.push(quote! {
+                            #field_name: Default::default(),
+                        });
                     }
-                    acc
-                });
+                }
+            }
 
             quote! {
                 impl #ty {
