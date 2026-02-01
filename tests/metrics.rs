@@ -69,6 +69,35 @@ struct DynamicScopeMetrics {
     skipped_field_e: u128,
 }
 
+/// Tests per-field labels with static scope.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(scope = "transactions")]
+struct FieldLabelMetrics {
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "forwarded")])]
+    forwarded: Counter,
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "dropped")])]
+    dropped: Counter,
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "processed"), ("priority", "high")])]
+    processed_high: Counter,
+}
+
+/// Tests per-field labels with dynamic scope.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(dynamic = true)]
+struct DynamicFieldLabelMetrics {
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "forwarded")])]
+    forwarded: Counter,
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "dropped")])]
+    dropped: Counter,
+}
+
 static RECORDER: LazyLock<TestRecorder> = LazyLock::new(TestRecorder::new);
 
 fn test_describe(scope: &str) {
@@ -239,6 +268,48 @@ fn dynamic_label_metrics() {
     let _metrics = DynamicScopeMetrics::new_with_labels(scope, &[("key", "value")]);
 
     test_labels(scope);
+}
+
+#[test]
+fn field_labels_static() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = FieldLabelMetrics::new_with_labels(&[("env", "prod")]);
+
+    // "forwarded" field: struct labels + field labels
+    let forwarded = RECORDER.get_metric("transactions.count");
+    assert!(forwarded.is_some());
+    let metric = forwarded.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    // We can't distinguish between the three "count" metrics by name alone,
+    // but we can check that at least one was registered with the expected labels.
+    // The last one registered will be stored (processed_high with 3 labels).
+    let labels = metric.labels.unwrap();
+    // Last registered is processed_high: env=prod, outcome=processed, priority=high
+    assert_eq!(labels.len(), 3);
+    assert!(labels.contains(&Label::new("env", "prod")));
+    assert!(labels.contains(&Label::new("outcome", "processed")));
+    assert!(labels.contains(&Label::new("priority", "high")));
+}
+
+#[test]
+fn field_labels_dynamic() {
+    let _guard = RECORDER.enter();
+
+    let scope = "dynamic_tx";
+
+    let _metrics = DynamicFieldLabelMetrics::new_with_labels(scope, &[("env", "staging")]);
+
+    // Check that field labels are appended to struct labels
+    let metric = RECORDER.get_metric(&format!("{scope}.count"));
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    // Last registered is "dropped": env=staging, outcome=dropped
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 2);
+    assert!(labels.contains(&Label::new("env", "staging")));
+    assert!(labels.contains(&Label::new("outcome", "dropped")));
 }
 
 struct TestRecorder {
