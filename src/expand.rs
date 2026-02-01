@@ -30,6 +30,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
         MetricsScope::Static(scope) => {
             let mut field_inits = Vec::with_capacity(metric_fields.len());
             let mut describes = Vec::with_capacity(metric_fields.len());
+            let mut partial_clone_inits = Vec::with_capacity(metric_fields.len());
 
             for metric in &metric_fields {
                 let field_name = &metric.field().ident;
@@ -57,9 +58,15 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                                 ::core::convert::Into::into(#description),
                             );
                         });
+                        partial_clone_inits.push(quote! {
+                            #field_name: ::core::clone::Clone::clone(&self.#field_name),
+                        });
                     }
                     MetricField::Skipped(_) => {
                         field_inits.push(quote! {
+                            #field_name: Default::default(),
+                        });
+                        partial_clone_inits.push(quote! {
                             #field_name: Default::default(),
                         });
                     }
@@ -72,8 +79,14 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                     ///
                     /// This initializes all metrics and registers them with the global recorder.
                     /// Metrics are described only once; see [`Self::describe`].
+                    ///
+                    /// The result is cached in a static `OnceLock`, so subsequent calls will
+                    /// return a clone of the same instance.
                     fn default() -> Self {
-                        Self::_new_with_labels(::std::vec::Vec::<::metrics::Label>::new())
+                        static __ONCE: ::std::sync::OnceLock<#ty> = ::std::sync::OnceLock::new();
+                        __ONCE.get_or_init(|| {
+                            Self::_new_with_labels(::std::vec::Vec::<::metrics::Label>::new())
+                        })._partial_clone()
                     }
                 }
 
@@ -124,6 +137,12 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                         ::metrics::with_recorder(|__recorder| {
                             #(#describes)*
                         });
+                    }
+
+                    fn _partial_clone(&self) -> Self {
+                        Self {
+                            #(#partial_clone_inits)*
+                        }
                     }
                 }
             }
