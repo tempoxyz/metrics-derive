@@ -69,6 +69,82 @@ struct DynamicScopeMetrics {
     skipped_field_e: u128,
 }
 
+/// Tests per-field labels with static scope.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(scope = "transactions")]
+struct FieldLabelMetrics {
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "forwarded")])]
+    forwarded: Counter,
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "dropped")])]
+    dropped: Counter,
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "processed"), ("priority", "high")])]
+    processed_high: Counter,
+}
+
+/// Tests per-field labels with dynamic scope.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(dynamic = true)]
+struct DynamicFieldLabelMetrics {
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "forwarded")])]
+    forwarded: Counter,
+    /// Number of transactions.
+    #[metric(rename = "count", labels = [("outcome", "dropped")])]
+    dropped: Counter,
+}
+
+/// Tests global labels on the struct attribute (static scope).
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(scope = "global_test", labels = [("service", "api"), ("version", "v1")])]
+struct GlobalLabelMetrics {
+    /// A counter.
+    requests: Counter,
+    /// A counter with field-level labels too.
+    #[metric(labels = [("method", "GET")])]
+    get_requests: Counter,
+}
+
+/// Tests global labels with dynamic scope.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(dynamic = true, labels = [("env", "prod")])]
+struct DynamicGlobalLabelMetrics {
+    /// A counter.
+    requests: Counter,
+}
+
+/// Constants for testing expression-based label values.
+const SERVICE_NAME: &str = "gateway";
+const API_VERSION: &str = "v2";
+
+/// Tests labels with constant expressions instead of string literals.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(scope = "const_test", labels = [("service", SERVICE_NAME)])]
+struct ConstLabelMetrics {
+    /// A counter with a constant label value.
+    #[metric(labels = [("version", API_VERSION)])]
+    requests: Counter,
+    /// A counter mixing literals and constants.
+    #[metric(labels = [("method", "GET"), ("version", API_VERSION)])]
+    get_requests: Counter,
+}
+
+/// Tests dynamic scope with constant labels.
+#[allow(dead_code)]
+#[derive(Metrics)]
+#[metrics(dynamic = true, labels = [("service", SERVICE_NAME)])]
+struct DynamicConstLabelMetrics {
+    /// A counter.
+    requests: Counter,
+}
+
 static RECORDER: LazyLock<TestRecorder> = LazyLock::new(TestRecorder::new);
 
 fn test_describe(scope: &str) {
@@ -239,6 +315,166 @@ fn dynamic_label_metrics() {
     let _metrics = DynamicScopeMetrics::new_with_labels(scope, &[("key", "value")]);
 
     test_labels(scope);
+}
+
+#[test]
+fn field_labels_static() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = FieldLabelMetrics::new_with_labels(&[("env", "prod")]);
+
+    // "forwarded" field: struct labels + field labels
+    let forwarded = RECORDER.get_metric("transactions.count");
+    assert!(forwarded.is_some());
+    let metric = forwarded.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    // We can't distinguish between the three "count" metrics by name alone,
+    // but we can check that at least one was registered with the expected labels.
+    // The last one registered will be stored (processed_high with 3 labels).
+    let labels = metric.labels.unwrap();
+    // Last registered is processed_high: env=prod, outcome=processed, priority=high
+    assert_eq!(labels.len(), 3);
+    assert!(labels.contains(&Label::new("env", "prod")));
+    assert!(labels.contains(&Label::new("outcome", "processed")));
+    assert!(labels.contains(&Label::new("priority", "high")));
+}
+
+#[test]
+fn field_labels_dynamic() {
+    let _guard = RECORDER.enter();
+
+    let scope = "dynamic_tx";
+
+    let _metrics = DynamicFieldLabelMetrics::new_with_labels(scope, &[("env", "staging")]);
+
+    // Check that field labels are appended to struct labels
+    let metric = RECORDER.get_metric(&format!("{scope}.count"));
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    // Last registered is "dropped": env=staging, outcome=dropped
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 2);
+    assert!(labels.contains(&Label::new("env", "staging")));
+    assert!(labels.contains(&Label::new("outcome", "dropped")));
+}
+
+#[test]
+fn global_labels_static() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = GlobalLabelMetrics::default();
+
+    // Check "requests" has global labels only
+    let metric = RECORDER.get_metric("global_test.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 2);
+    assert!(labels.contains(&Label::new("service", "api")));
+    assert!(labels.contains(&Label::new("version", "v1")));
+}
+
+#[test]
+fn global_labels_with_field_labels() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = GlobalLabelMetrics::default();
+
+    // Check "get_requests" has global labels + field labels
+    let metric = RECORDER.get_metric("global_test.get_requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    let labels = metric.labels.unwrap();
+    // Global: service=api, version=v1; Field: method=GET
+    assert_eq!(labels.len(), 3);
+    assert!(labels.contains(&Label::new("service", "api")));
+    assert!(labels.contains(&Label::new("version", "v1")));
+    assert!(labels.contains(&Label::new("method", "GET")));
+}
+
+#[test]
+fn global_labels_dynamic() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = DynamicGlobalLabelMetrics::new("dyn");
+
+    let metric = RECORDER.get_metric("dyn.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 1);
+    assert!(labels.contains(&Label::new("env", "prod")));
+}
+
+#[test]
+fn global_labels_with_new_with_labels() {
+    let _guard = RECORDER.enter();
+
+    // Instance labels + global labels should combine
+    let _metrics = GlobalLabelMetrics::new_with_labels(&[("instance", "i-123")]);
+
+    let metric = RECORDER.get_metric("global_test.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    let labels = metric.labels.unwrap();
+    // Instance: instance=i-123; Global: service=api, version=v1
+    assert_eq!(labels.len(), 3);
+    assert!(labels.contains(&Label::new("instance", "i-123")));
+    assert!(labels.contains(&Label::new("service", "api")));
+    assert!(labels.contains(&Label::new("version", "v1")));
+}
+
+#[test]
+fn const_labels_static() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = ConstLabelMetrics::default();
+
+    // Check "requests" has global label (service=gateway) + field label (version=v2)
+    let metric = RECORDER.get_metric("const_test.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    assert_eq!(metric.ty, TestMetricTy::Counter);
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 2);
+    assert!(labels.contains(&Label::new("service", SERVICE_NAME)));
+    assert!(labels.contains(&Label::new("version", API_VERSION)));
+}
+
+#[test]
+fn const_labels_mixed() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = ConstLabelMetrics::default();
+
+    // Check "get_requests" has global + mixed field labels
+    let metric = RECORDER.get_metric("const_test.get_requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    let labels = metric.labels.unwrap();
+    // Global: service=gateway; Field: method=GET, version=v2
+    assert_eq!(labels.len(), 3);
+    assert!(labels.contains(&Label::new("service", SERVICE_NAME)));
+    assert!(labels.contains(&Label::new("method", "GET")));
+    assert!(labels.contains(&Label::new("version", API_VERSION)));
+}
+
+#[test]
+fn const_labels_dynamic() {
+    let _guard = RECORDER.enter();
+
+    let _metrics = DynamicConstLabelMetrics::new("dyn_const");
+
+    let metric = RECORDER.get_metric("dyn_const.requests");
+    assert!(metric.is_some());
+    let metric = metric.unwrap();
+    let labels = metric.labels.unwrap();
+    assert_eq!(labels.len(), 1);
+    assert!(labels.contains(&Label::new("service", SERVICE_NAME)));
 }
 
 struct TestRecorder {

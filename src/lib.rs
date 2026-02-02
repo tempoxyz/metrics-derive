@@ -131,6 +131,82 @@ mod with_attrs;
 ///     }
 /// }
 /// ```
+///
+/// ## Per-field labels
+///
+/// You can attach labels to individual fields using the `labels` attribute.
+/// This is useful when you want multiple fields to share the same metric name
+/// but be distinguished by label values:
+///
+/// ```
+/// use metrics::Counter;
+/// use metrics_derive::Metrics;
+///
+/// #[derive(Metrics)]
+/// #[metrics(scope = "forwarder")]
+/// pub struct TransactionMetrics {
+///     /// Number of transactions.
+///     #[metric(rename = "transactions", labels = [("outcome", "forwarded")])]
+///     forwarded: Counter,
+///     /// Number of transactions.
+///     #[metric(rename = "transactions", labels = [("outcome", "dropped")])]
+///     dropped: Counter,
+/// }
+/// ```
+///
+/// Field-level labels are appended to any struct-level labels passed via
+/// `new_with_labels()`. Multiple labels can be specified per field:
+///
+/// ```
+/// use metrics::Counter;
+/// use metrics_derive::Metrics;
+///
+/// #[derive(Metrics)]
+/// #[metrics(scope = "api")]
+/// pub struct RequestMetrics {
+///     /// Request count.
+///     #[metric(rename = "requests", labels = [("method", "GET"), ("status", "200")])]
+///     get_success: Counter,
+/// }
+/// ```
+///
+/// ## Global labels
+///
+/// You can also specify labels at the struct level that apply to all fields.
+/// These are combined with any instance labels passed via `new_with_labels()`:
+///
+/// ```
+/// use metrics::Counter;
+/// use metrics_derive::Metrics;
+///
+/// #[derive(Metrics)]
+/// #[metrics(scope = "api", labels = [("service", "gateway"), ("version", "v1")])]
+/// pub struct ApiMetrics {
+///     /// Total requests.
+///     requests: Counter,
+///     /// Successful requests (with additional field-level labels).
+///     #[metric(labels = [("status", "success")])]
+///     success: Counter,
+/// }
+/// ```
+///
+/// Label order: instance labels (from `new_with_labels`) → global labels → field labels.
+///
+/// Label values can also be arbitrary expressions, such as constants:
+///
+/// ```
+/// use metrics::Counter;
+/// use metrics_derive::Metrics;
+///
+/// const SERVICE_NAME: &str = "gateway";
+///
+/// #[derive(Metrics)]
+/// #[metrics(scope = "api", labels = [("service", SERVICE_NAME)])]
+/// pub struct ConstLabelMetrics {
+///     /// Total requests.
+///     requests: Counter,
+/// }
+/// ```
 #[proc_macro_derive(Metrics, attributes(metrics, metric))]
 pub fn derive_metrics(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

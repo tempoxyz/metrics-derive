@@ -60,3 +60,45 @@ struct CustomMetrics8 {
     #[metric(describe = "")]
     gauge: String,
 }
+
+#[derive(Metrics)]
+#[metrics(scope = "some_scope")]
+struct CustomMetrics9 {
+    #[metric(describe = "gauge", labels = "not_an_array")]
+    gauge: Gauge,
+}
+
+#[derive(Metrics)]
+#[metrics(scope = "some_scope")]
+struct CustomMetrics10 {
+    #[metric(describe = "gauge", labels = ["not_a_tuple"])]
+    gauge: Gauge,
+}
+
+#[derive(Metrics)]
+#[metrics(scope = "some_scope")]
+struct CustomMetrics11 {
+    #[metric(describe = "gauge", labels = [("only_one")])]
+    gauge: Gauge,
+}
+
+#[derive(Metrics)]
+#[metrics(scope = "some_scope")]
+struct CustomMetrics12 {
+    #[metric(describe = "gauge", labels = [(123, "value")])]
+    gauge: Gauge,
+}
+
+#[derive(Metrics)]
+#[metrics(scope = "some_scope")]
+struct CustomMetrics13 {
+    #[metric(describe = "gauge", labels = [], labels = [])]
+    gauge: Gauge,
+}
+
+#[derive(Metrics)]
+#[metrics(scope = "some_scope")]
+struct CustomMetrics14 {
+    #[metric(describe = "gauge", labels = [("key", "value1"), ("key", "value2")])]
+    gauge: Gauge,
+}

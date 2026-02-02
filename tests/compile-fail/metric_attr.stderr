@@ -46,3 +46,39 @@ error: unsupported metric type
    |
 61 |     gauge: String,
    |            ^^^^^^
+
+error: labels must be an array of tuples, e.g. `labels = [("key", "value")]`
+  --> tests/compile-fail/metric_attr.rs:67:43
+   |
+67 |     #[metric(describe = "gauge", labels = "not_an_array")]
+   |                                           ^^^^^^^^^^^^^^
+
+error: each label must be a tuple, e.g. `("key", "value")` or `("key", CONST)`
+  --> tests/compile-fail/metric_attr.rs:74:44
+   |
+74 |     #[metric(describe = "gauge", labels = ["not_a_tuple"])]
+   |                                            ^^^^^^^^^^^^^
+
+error: each label must be a tuple, e.g. `("key", "value")` or `("key", CONST)`
+  --> tests/compile-fail/metric_attr.rs:81:44
+   |
+81 |     #[metric(describe = "gauge", labels = [("only_one")])]
+   |                                            ^^^^^^^^^^^^
+
+error: value must be a string literal
+  --> tests/compile-fail/metric_attr.rs:88:45
+   |
+88 |     #[metric(describe = "gauge", labels = [(123, "value")])]
+   |                                             ^^^
+
+error: duplicate `labels` value provided
+  --> tests/compile-fail/metric_attr.rs:95:47
+   |
+95 |     #[metric(describe = "gauge", labels = [], labels = [])]
+   |                                               ^^^^^^^^^^^
+
+error: duplicate label key `key`
+   --> tests/compile-fail/metric_attr.rs:102:64
+    |
+102 |     #[metric(describe = "gauge", labels = [("key", "value1"), ("key", "value2")])]
+    |                                                                ^^^^^
