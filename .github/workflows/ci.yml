@@ -19,13 +19,15 @@ jobs:
         rust: ["stable", "beta", "nightly", "1.80"]
     steps:
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           toolchain: ${{ matrix.rust }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: tempoxyz/gh-actions/vendor/Swatinem/rust-cache@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           cache-on-failure: true
-      - uses: taiki-e/install-action@742a3ac9a75553d78e25773da9e6c438fdc5a74a
+      - uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+        with:
+          tool: nextest
       - run: cargo build --workspace
       - run: cargo test --doc --workspace
       - run: cargo nextest run --workspace
@@ -35,8 +37,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
-      - uses: dtolnay/rust-toolchain@ef575f3cf1b0268593c26ad38174b9d0d7f50b9c
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+        with:
+          toolchain: nightly
+      - uses: tempoxyz/gh-actions/vendor/Swatinem/rust-cache@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           cache-on-failure: true
       - run: cargo clippy --workspace --all-targets --all-features
@@ -48,8 +52,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
-      - uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+        with:
+          toolchain: nightly
+      - uses: tempoxyz/gh-actions/vendor/Swatinem/rust-cache@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           cache-on-failure: true
       - run: cargo doc --workspace --all-features --no-deps --document-private-items
@@ -61,7 +67,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
-      - uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
+          toolchain: nightly
           components: rustfmt
       - run: cargo fmt --all --check
