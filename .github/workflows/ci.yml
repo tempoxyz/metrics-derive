@@ -8,17 +8,26 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions: {}
+
 jobs:
   test:
     name: test ${{ matrix.rust }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
         rust: ["stable", "beta", "nightly", "1.80"]
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@27b9d9cb079918e6be16c8660f82bb0cf7fef6ea
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
+        with:
+          persist-credentials: false
       - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           toolchain: ${{ matrix.rust }}
@@ -35,8 +44,15 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@27b9d9cb079918e6be16c8660f82bb0cf7fef6ea
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
+        with:
+          persist-credentials: false
       - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           toolchain: nightly
@@ -51,8 +67,15 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@27b9d9cb079918e6be16c8660f82bb0cf7fef6ea
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
+        with:
+          persist-credentials: false
       - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           toolchain: nightly
@@ -66,8 +89,15 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@27b9d9cb079918e6be16c8660f82bb0cf7fef6ea
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
+        with:
+          persist-credentials: false
       - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           toolchain: nightly
