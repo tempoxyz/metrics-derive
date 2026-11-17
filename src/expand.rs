@@ -4,8 +4,8 @@ use crate::{
 };
 use quote::{quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, Attribute, Data, DeriveInput, Error, Expr, ExprTuple, Field, Lit,
-    LitBool, LitStr, Meta, MetaNameValue, Result, Token,
+    punctuated::Punctuated, Attribute, Data, DeriveInput, Error, Expr, ExprTuple, Field, Ident,
+    Lit, LitBool, LitStr, Meta, MetaNameValue, Result, Token, Visibility,
 };
 
 enum MetricField<'a> {
@@ -29,6 +29,29 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
     let metrics_attr = parse_metrics_attr(node)?;
     let metric_fields = parse_metric_fields(node)?;
 
+    let register_and_describe = if cfg!(feature = "noop") {
+        derive_noop(ty, vis, &metrics_attr.scope, &metric_fields)?
+    } else {
+        derive_native(ty, vis, &metrics_attr, &metric_fields)?
+    };
+
+    Ok(quote! {
+        #register_and_describe
+
+        impl ::core::fmt::Debug for #ty {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                f.debug_struct(#ident_name).finish()
+            }
+        }
+    })
+}
+
+fn derive_native(
+    ty: &Ident,
+    vis: &Visibility,
+    metrics_attr: &MetricsAttr,
+    metric_fields: &[MetricField<'_>],
+) -> Result<proc_macro2::TokenStream> {
     let global_labels_init = if metrics_attr.labels.is_empty() {
         quote! {}
     } else {
@@ -41,13 +64,13 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
         }
     };
 
-    let register_and_describe = match &metrics_attr.scope {
+    Ok(match &metrics_attr.scope {
         MetricsScope::Static(scope) => {
             let mut field_inits = Vec::with_capacity(metric_fields.len());
             let mut describes = Vec::with_capacity(metric_fields.len());
             let mut partial_clone_inits = Vec::with_capacity(metric_fields.len());
 
-            for metric in &metric_fields {
+            for metric in metric_fields {
                 let field_name = &metric.field().ident;
                 match metric {
                     MetricField::Included(metric) => {
@@ -190,7 +213,7 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
             let mut field_inits = Vec::with_capacity(metric_fields.len());
             let mut describes = Vec::with_capacity(metric_fields.len());
 
-            for metric in &metric_fields {
+            for metric in metric_fields {
                 let field_name = &metric.field().ident;
                 match metric {
                     MetricField::Included(metric) => {
@@ -296,16 +319,69 @@ pub(crate) fn derive(node: &DeriveInput) -> Result<proc_macro2::TokenStream> {
                 }
             }
         }
-    };
+    })
+}
 
-    Ok(quote! {
-        #register_and_describe
-
-        impl ::core::fmt::Debug for #ty {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                f.debug_struct(#ident_name).finish()
+fn derive_noop(
+    ty: &Ident,
+    vis: &Visibility,
+    scope: &MetricsScope,
+    metric_fields: &[MetricField<'_>],
+) -> Result<proc_macro2::TokenStream> {
+    let mut field_inits = Vec::with_capacity(metric_fields.len());
+    for metric in metric_fields {
+        let field_name = &metric.field().ident;
+        let field_init = match metric {
+            MetricField::Included(metric) => {
+                // Keep the same metric-type validation as native expansion.
+                metric.register_method()?;
+                metric.describe_method()?;
+                let field_ty = &metric.field.ty;
+                quote! { <#field_ty>::noop() }
             }
-        }
+            MetricField::Skipped(_) => quote! { ::core::default::Default::default() },
+        };
+        field_inits.push(quote! { #field_name: #field_init, });
+    }
+
+    Ok(match scope {
+        MetricsScope::Static(_) => quote! {
+            impl Default for #ty {
+                /// Creates inert metrics without accessing the recorder.
+                fn default() -> Self {
+                    Self { #(#field_inits)* }
+                }
+            }
+
+            impl #ty {
+                /// Creates inert metrics, ignoring the provided labels.
+                #vis fn new_with_labels(_labels: impl metrics::IntoLabels) -> Self {
+                    <Self as ::core::default::Default>::default()
+                }
+
+                /// Does nothing when the `noop` feature is enabled.
+                #vis fn describe() {}
+
+                /// Does nothing when the `noop` feature is enabled.
+                #vis fn force_describe() {}
+            }
+        },
+        MetricsScope::Dynamic => quote! {
+            impl #ty {
+                /// Creates inert metrics, ignoring the provided scope.
+                #vis fn new(_scope: &str) -> Self {
+                    Self { #(#field_inits)* }
+                }
+
+                /// Creates inert metrics, ignoring the provided scope and labels.
+                #vis fn new_with_labels(_scope: &str, _labels: impl metrics::IntoLabels) -> Self {
+                    Self::new(_scope)
+                }
+
+                /// Does nothing when the `noop` feature is enabled.
+                #vis fn describe(_scope: &str) {}
+            }
+        },
     })
 }
 

@@ -2,6 +2,12 @@
 //!
 //! See the [`Metrics`] derive macro for more information.
 //!
+//! The opt-in `noop` feature generates inert metric handles and empty description methods,
+//! without recorder access, label conversion, or global synchronization. Attribute label
+//! expressions are not evaluated; skipped fields still use `Default::default()`. Macro input
+//! validation is unchanged. Cargo feature unification applies: enabling `noop` affects all
+//! consumers of the same resolved macro crate, not just the crate enabling the feature.
+//!
 //! [`metrics`]: https://docs.rs/metrics
 
 #![doc(issue_tracker_base_url = "https://github.com/tempoxyz/metrics-derive/issues/")]

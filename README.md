@@ -21,6 +21,26 @@ metrics-derive = "0.1"
 
 This crate requires a [`metrics`](https://crates.io/crates/metrics) peer dependency.
 
+## No-op metrics
+
+Enable the opt-in `noop` feature to generate inert metric handles:
+
+```toml
+metrics-derive = { version = "0.1", features = ["noop"] }
+```
+
+Constructors use each metric type's `noop()` method and initialize skipped fields
+with `Default::default()`. Description methods do nothing. Generated code does not
+access the recorder, use global synchronization, convert instance labels, or
+evaluate label expressions in attributes. Arguments passed to constructors are
+still evaluated by the caller. Attribute syntax and supported metric types are
+validated as usual.
+
+This is a feature of the **macro crate**, not a feature checked in the calling
+crate. Cargo feature unification means enabling it affects every consumer of the
+same resolved `metrics-derive` instance. Leave it disabled for normal metrics;
+avoid enabling it alongside consumers that require recording.
+
 ## Usage
 
 ```rust

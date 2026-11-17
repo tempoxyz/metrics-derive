@@ -19,6 +19,10 @@ rustdoc-args = [
 [lib]
 proc-macro = true
 
+[features]
+# Generate inert metrics for every user of this macro crate in the resolved feature graph.
+noop = []
+
 [dependencies]
 proc-macro2 = "1.0"
 quote = "1.0"
