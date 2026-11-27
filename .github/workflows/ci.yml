@@ -41,29 +41,6 @@ jobs:
       - run: cargo test --doc --workspace
       - run: cargo nextest run --workspace
 
-  clippy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@35019557465e3c38ee3468be171771fd73577584 # 2026-10-20T06-22-38Z-35019557
-      - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
-        with:
-          persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@35019557465e3c38ee3468be171771fd73577584 # 2026-10-20T06-22-38Z-35019557
-        with:
-          toolchain: nightly
-          components: clippy
-      - uses: tempoxyz/gh-actions/vendor/Swatinem/rust-cache@35019557465e3c38ee3468be171771fd73577584 # 2026-10-20T06-22-38Z-35019557
-        with:
-          cache-on-failure: true
-      - run: cargo clippy --workspace --all-targets --all-features
-        env:
-          RUSTFLAGS: -Dwarnings
-
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -86,20 +63,16 @@ jobs:
         env:
           RUSTDOCFLAGS: "--cfg docsrs -D warnings"
 
-  fmt:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  lint:
+    uses: tempoxyz/gh-actions/.github/workflows/rust-lint.yml@35019557465e3c38ee3468be171771fd73577584 # 2026-10-20T06-22-38Z-35019557
     permissions:
       contents: read
       id-token: write
-    steps:
-      - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@35019557465e3c38ee3468be171771fd73577584 # 2026-10-20T06-22-38Z-35019557
-      - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
-        with:
-          persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@35019557465e3c38ee3468be171771fd73577584 # 2026-10-20T06-22-38Z-35019557
-        with:
-          toolchain: nightly
-          components: rustfmt
-      - run: cargo fmt --all --check
+    with:
+      run-typos: false
+      run-deny: false
+      clippy-runner: ubuntu-latest
+      fmt-runner: ubuntu-latest
+      rust-toolchain: nightly
+      clippy-flags: --workspace --all-targets --all-features
+      fmt-flags: --all --check
